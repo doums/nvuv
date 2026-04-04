@@ -1,0 +1,10 @@
+#!/bin/sh
+
+# systemd-sleep hook /usr/lib/systemd/system-sleep/
+
+case "$1" in
+post)
+  /usr/bin/sleep 2 # delay to give the driver to resume
+  /usr/bin/nvuv applycfg
+  ;;
+esac

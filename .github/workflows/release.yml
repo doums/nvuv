@@ -1,0 +1,136 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for the release'
+        required: false
+        default: dev
+      publish:
+        type: boolean
+        description: Publish Release
+        required: true
+        default: false
+  push:
+    tags:
+      - v*
+
+jobs:
+  build-arch:
+    name: Build Arch Linux (x86_64)
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:base-devel
+      options: --privileged # may be needed
+    env:
+      ARTIFACT_DIR: artifact
+      ARCH_TARGET: x86_64-linux-gnu
+    outputs:
+      sha256: ${{ steps.gen_sha256.outputs.sha256 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Update system
+        run: |
+          pacman -Syu --noconfirm
+
+      - name: Install system deps
+        run: |
+          pacman -S --noconfirm nvidia-utils
+
+      - name: Install Zig 0.16.0-dev
+        uses: mlugg/setup-zig@v2
+        with:
+          version: master
+
+      - name: Verify Zig version
+        run: zig version
+
+      - name: Build
+        run: |
+          zig build -Doptimize=ReleaseSmall -Dtarget=${{ env.ARCH_TARGET }}
+          ls -la zig-out/bin/
+
+      - name: Prepare artifact
+        run: |
+          mkdir $ARTIFACT_DIR
+          mv -f zig-out/bin/nvuv $ARTIFACT_DIR/nvuv_${{ env.ARCH_TARGET }}
+
+      - name: Gen sha256
+        id: gen_sha256
+        working-directory: ${{ env.ARTIFACT_DIR }}
+        run: |
+          sha256=$(sha256sum nvuv*)
+          echo "$sha256"
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+          echo "$sha256" > nvuv_${{ env.ARCH_TARGET }}.sha256sum
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: zig-binary
+          path: ${{ env.ARTIFACT_DIR }}
+          retention-days: 2
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.publish == true
+    name: Release
+    needs: build-arch
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download binary artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: zig-binary
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ inputs.tag_name || github.ref_name }}
+          tag_name: ${{ inputs.tag_name || github.ref_name }}
+          files: |
+            nvuv*
+
+  # aur-packaging:
+  #   name: Publish AUR package
+  #   needs: release
+  #   runs-on: ubuntu-latest
+  #   env:
+  #     PKGNAME: nvuv
+  #     PKGBUILD: ./.pkg/arch/PKGBUILD
+  #     RELEASE_TAG: ${{ github.ref_name }}
+  #     REPOSITORY: ${{ github.repository }}
+  #     TARBALL: sources.tar.gz
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v6
+  #     - name: Download sources
+  #       run: |
+  #         curl -LfsSo ${{ env.TARBALL }} "https://github.com/${{ env.REPOSITORY }}/archive/refs/tags/${{ env.RELEASE_TAG }}.tar.gz"
+  #         mkdir tarball
+  #         tar -xzf ${{ env.TARBALL }} -C tarball
+  #         mv -vf tarball/nvuv-* tarball/nvuv
+  #     - name: Get app version
+  #       id: app-version
+  #       uses: TODO
+  #     - name: Update PKGBUILD
+  #       env:
+  #         PKGBUILD: ${{ env.PKGBUILD }}
+  #         PKGVER: ${{ steps.app-version.outputs.metadata }}
+  #       run: ./.pkg/arch/update.sh
+  #     - name: Show PKGBUILD
+  #       run: cat "$PKGBUILD"
+  #     - name: Publish
+  #       uses: KSXGitHub/github-actions-deploy-aur@v4.1.2
+  #       with:
+  #         pkgname: ${{ env.PKGNAME }}
+  #         pkgbuild: ${{ env.PKGBUILD }}
+  #         commit_username: ${{ secrets.AUR_USERNAME }}
+  #         commit_email: ${{ secrets.AUR_EMAIL }}
+  #         ssh_private_key: ${{ secrets.AUR_SSH_KEY }}
+  #         commit_message: ${{ format('v{0}', steps.app-version.outputs.metadata) }}

@@ -1,0 +1,14 @@
+[Unit]
+Description=Apply nvuv config
+# Run after the system has fully booted and NVIDIA driver is loaded
+After=multi-user.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Small delay to give the driver time to fully settle (after a resume)
+ExecStartPre=/usr/bin/sleep 2
+ExecStart=/usr/bin/nvuv applycfg
+
+[Install]
+WantedBy=multi-user.target
