@@ -14,7 +14,7 @@ on:
         default: false
   push:
     tags:
-      - v*
+      - 'v*'
 
 jobs:
   build-arch:
@@ -22,12 +22,12 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: archlinux:base-devel
-      options: --privileged # may be needed
+      options: --privileged
+
     env:
       ARTIFACT_DIR: artifact
-      ARCH_TARGET: x86_64-linux-gnu
-    outputs:
-      sha256: ${{ steps.gen_sha256.outputs.sha256 }}
+      BINARY_NAME: nvuv-linux-x86_64
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -40,61 +40,66 @@ jobs:
         run: |
           pacman -S --noconfirm nvidia-utils
 
-      - name: Install Zig 0.16.0-dev
+      - name: Install Zig master
         uses: mlugg/setup-zig@v2
         with:
           version: master
 
-      - name: Verify Zig version
-        run: zig version
-
       - name: Build
         run: |
-          zig build -Doptimize=ReleaseSmall -Dtarget=${{ env.ARCH_TARGET }}
-          ls -la zig-out/bin/
+          zig build -Doptimize=ReleaseSmall --search-prefix /usr
+          ls -lh zig-out/bin/
 
-      - name: Prepare artifact
+      - name: Prepare artifacts
         run: |
-          mkdir $ARTIFACT_DIR
-          mv -f zig-out/bin/nvuv $ARTIFACT_DIR/nvuv_${{ env.ARCH_TARGET }}
+          mkdir -p ${{ env.ARTIFACT_DIR }}
+          cp zig-out/bin/nvuv ${{ env.ARTIFACT_DIR }}/${{ env.BINARY_NAME }}
+          cd ${{ env.ARTIFACT_DIR }}
+          sha256sum ${{ env.BINARY_NAME }} > ${{ env.BINARY_NAME }}.sha256sum
+          ls -lh
 
-      - name: Gen sha256
-        id: gen_sha256
-        working-directory: ${{ env.ARTIFACT_DIR }}
+      - name: Print build info
         run: |
-          sha256=$(sha256sum nvuv*)
-          echo "$sha256"
-          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
-          echo "$sha256" > nvuv_${{ env.ARCH_TARGET }}.sha256sum
+          echo "--------------------------------------------"
+          echo "SHA256 Checksum:"
+          echo "--------------------------------------------"
+          cat ${{ env.ARTIFACT_DIR }}/${{ env.BINARY_NAME }}.sha256sum
+          echo "--------------------------------------------"
+          echo "binary name: ${{ env.BINARY_NAME }}"
+          echo "file size  : $(du -h ${{ env.ARTIFACT_DIR }}/${{ env.BINARY_NAME }} | cut -f1)"
+          echo "--------------------------------------------"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: zig-binary
+          name: nvuv-linux-x86_64
           path: ${{ env.ARTIFACT_DIR }}
-          retention-days: 2
+          retention-days: 7
           if-no-files-found: error
 
   release:
     if: startsWith(github.ref, 'refs/tags/v') || inputs.publish == true
-    name: Release
+    name: Create GitHub Release
     needs: build-arch
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
-      - name: Download binary artifact
+      - name: Download artifact
         uses: actions/download-artifact@v6
         with:
-          name: zig-binary
+          name: nvuv-linux-x86_64
+          path: release-assets
 
-      - name: Create release
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ inputs.tag_name || github.ref_name }}
           tag_name: ${{ inputs.tag_name || github.ref_name }}
+          draft: false
           files: |
-            nvuv*
+            release-assets/*
 
   # aur-packaging:
   #   name: Publish AUR package
