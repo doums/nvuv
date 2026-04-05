@@ -13,16 +13,16 @@ const nvml_buf_size = c.NVML_SYSTEM_NVML_VERSION_BUFFER_SIZE;
 
 pub const Nvml = struct {
     allocator: std.mem.Allocator,
-    driver_version: [driver_buf_size]u8,
-    nvml_version: [nvml_buf_size]u8,
+    driver_version: []u8, // owned memory
+    nvml_version: []u8, // owned memory
     gpu_count: u32,
     gpus: []Gpu,
 
     pub fn init(gpa: std.mem.Allocator) !Nvml {
         try nvmlCheck(c.nvmlInit());
 
-        var driver_version: [driver_buf_size]u8 = undefined;
-        var nvml_version: [nvml_buf_size]u8 = undefined;
+        var driver_version: [driver_buf_size:0]u8 = undefined;
+        var nvml_version: [nvml_buf_size:0]u8 = undefined;
         // zig's usize = 64bits, nvml APIs expect c_uint = 32bits
         // so let's cast
         try nvmlCheck(c.nvmlSystemGetDriverVersion(&driver_version, @intCast(driver_version.len)));
@@ -30,8 +30,12 @@ pub const Nvml = struct {
         var device_count: c_uint = 0;
         try nvmlCheck(c.nvmlDeviceGetCount(&device_count));
 
-        std.log.debug("NVML version: {s}", .{nvml_version});
-        std.log.debug("driver version: {s}", .{driver_version});
+        // memory copy C sliced buffers, as in gpu.zig init
+        const owned_nvml_version = try gpa.dupe(u8, std.mem.sliceTo(&nvml_version, 0));
+        const owned_driver_version = try gpa.dupe(u8, std.mem.sliceTo(&driver_version, 0));
+
+        std.log.debug("NVML version: {s}", .{owned_nvml_version});
+        std.log.debug("driver version: {s}", .{owned_driver_version});
         std.log.debug("GPUs number: {d}", .{device_count});
 
         var arr: std.ArrayList(Gpu) = .empty;
@@ -39,6 +43,8 @@ pub const Nvml = struct {
             for (arr.items) |*g| g.deinit(gpa);
             arr.deinit(gpa);
             nvmlCheck(c.nvmlShutdown()) catch {};
+            gpa.free(owned_nvml_version);
+            gpa.free(owned_driver_version);
         }
 
         for (0..device_count) |index| {
@@ -49,8 +55,8 @@ pub const Nvml = struct {
 
         return Nvml{
             .allocator = gpa,
-            .driver_version = driver_version,
-            .nvml_version = nvml_version,
+            .driver_version = owned_driver_version,
+            .nvml_version = owned_nvml_version,
             .gpu_count = device_count,
             .gpus = gpus,
         };
@@ -59,7 +65,7 @@ pub const Nvml = struct {
     pub fn exec(self: *const Nvml, parsed: Parsed, config: ?UserConfig) !void {
         switch (parsed) {
             .query => |handler| {
-                try handler.run(self.gpus, &self.driver_version);
+                try handler.run(self.gpus, self.driver_version);
             },
             .set => |handler| {
                 try handler.run(self.gpus);
@@ -92,7 +98,8 @@ pub const Nvml = struct {
     pub fn deinit(self: *Nvml) void {
         for (self.gpus) |*g| g.deinit(self.allocator);
         self.allocator.free(self.gpus);
-
+        self.allocator.free(self.nvml_version);
+        self.allocator.free(self.driver_version);
         nvmlCheck(c.nvmlShutdown()) catch {};
     }
 };
