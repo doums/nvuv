@@ -4,12 +4,8 @@ CLI tool for undervolting NVIDIA gpu on Linux
 
 ## Install
 
-_will be available soon at_
-
 - GH [releases](https://github.com/doums/nvuv/releases/latest)
 - AUR https://aur.archlinux.org/packages/nvuv
-
-_WIP_
 
 ## Quick start
 

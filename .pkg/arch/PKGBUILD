@@ -20,7 +20,7 @@ _pkgdir="$pkgname-$pkgver"
 
 build() {
   cd "$srcdir/$_pkgdir"
-  zig build -Doptimize=ReleaseSmall --release=small --prefix "${srcdir}/zig-out"
+  zig build -Doptimize=ReleaseSmall --prefix "${srcdir}/zig-out"
 }
 
 package() {
