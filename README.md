@@ -88,16 +88,16 @@ max = 2400
 > [!TIP]
 > Use `--config /path/to/config.toml` to specify a custom config file
 
-Check the config is valid:
+Check the config is valid
 
 ```sh
-nvuv cfg
+> nvuv cfg
 ```
 
 To apply the config immediately - **root required**
 
 ```sh
-sudo nvuv applycfg
+> sudo nvuv applycfg
 ```
 
 ### Run as a systemd service
@@ -113,7 +113,7 @@ If needed, to use a custom file, [override](https://wiki.archlinux.org/title/Sys
 the service
 
 ```sh
-ExecStart=/usr/bin/nvuv --config /path/to/config.toml
+ExecStart=/usr/bin/nvuv applycfg --config /path/to/config.toml
 ```
 
 ## Implementation details
