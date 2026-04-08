@@ -101,41 +101,46 @@ jobs:
           files: |
             release-assets/*
 
-  # aur-packaging:
-  #   name: Publish AUR package
-  #   needs: release
-  #   runs-on: ubuntu-latest
-  #   env:
-  #     PKGNAME: nvuv
-  #     PKGBUILD: ./.pkg/arch/PKGBUILD
-  #     RELEASE_TAG: ${{ github.ref_name }}
-  #     REPOSITORY: ${{ github.repository }}
-  #     TARBALL: sources.tar.gz
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v6
-  #     - name: Download sources
-  #       run: |
-  #         curl -LfsSo ${{ env.TARBALL }} "https://github.com/${{ env.REPOSITORY }}/archive/refs/tags/${{ env.RELEASE_TAG }}.tar.gz"
-  #         mkdir tarball
-  #         tar -xzf ${{ env.TARBALL }} -C tarball
-  #         mv -vf tarball/nvuv-* tarball/nvuv
-  #     - name: Get app version
-  #       id: app-version
-  #       uses: TODO
-  #     - name: Update PKGBUILD
-  #       env:
-  #         PKGBUILD: ${{ env.PKGBUILD }}
-  #         PKGVER: ${{ steps.app-version.outputs.metadata }}
-  #       run: ./.pkg/arch/update.sh
-  #     - name: Show PKGBUILD
-  #       run: cat "$PKGBUILD"
-  #     - name: Publish
-  #       uses: KSXGitHub/github-actions-deploy-aur@v4.1.2
-  #       with:
-  #         pkgname: ${{ env.PKGNAME }}
-  #         pkgbuild: ${{ env.PKGBUILD }}
-  #         commit_username: ${{ secrets.AUR_USERNAME }}
-  #         commit_email: ${{ secrets.AUR_EMAIL }}
-  #         ssh_private_key: ${{ secrets.AUR_SSH_KEY }}
-  #         commit_message: ${{ format('v{0}', steps.app-version.outputs.metadata) }}
+  aur-publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    name: Publish AUR package
+    needs: release
+    runs-on: ubuntu-latest
+    env:
+      PKGBUILD: ./.pkg/arch/PKGBUILD
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Get tarball sha256sum
+        id: tarball
+        run: |
+          curl -LfsSo sources.tar.gz "https://github.com/doums/nvuv/archive/refs/tags/${{ github.ref_name }}.tar.gz"
+          sha256sum=$(sha256sum sources.tar.gz | awk '{print $1}')
+          echo "tarball sha256sum: $sha256sum"
+          echo "sha256sum=$sha256sum" >> "$GITHUB_OUTPUT"
+
+      - name: Update PKGBUILD
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          SHA256SUM: ${{ steps.tarball.outputs.sha256sum }}
+        run: |
+          # strip v prefix
+          version="${RELEASE_TAG#v}"
+          # ⚠ Dashes are not allowed in package version, replace any - by _
+          pkgver=${version//-/_}
+          echo "pkgver: $pkgver"
+          # update version and sha256sum
+          sed -i "s/pkgver=.*/pkgver=$pkgver/" ${{ env.PKGBUILD }}
+          sed -i "s/sha256sums=(.*)/sha256sums=('$SHA256SUM')/" ${{ env.PKGBUILD }}
+          cat ${{ env.PKGBUILD }}
+
+      - name: Publish
+        uses: KSXGitHub/github-actions-deploy-aur@v4.1.2
+        with:
+          pkgname: nvuv
+          pkgbuild: ${{ env.PKGBUILD }}
+          commit_username: ${{ secrets.AUR_USERNAME }}
+          commit_email: ${{ secrets.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_KEY }}
+          commit_message: ${{ github.ref_name }}
