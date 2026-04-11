@@ -62,16 +62,23 @@ pub const Nvml = struct {
         };
     }
 
-    pub fn exec(self: *const Nvml, parsed: Parsed, config: ?UserConfig) !void {
+    pub fn dispatch(self: *const Nvml, parsed: Parsed, config: ?UserConfig) !void {
         switch (parsed) {
             .query => |handler| {
-                try handler.run(self.gpus, self.driver_version);
+                try handler.run(self.gpus);
             },
             .set => |handler| {
                 try handler.run(self.gpus);
             },
             .reset => |handler| {
                 try handler.run(self.gpus);
+            },
+            .info => {
+                std.debug.print("NVIDIA driver: {s}\n", .{self.driver_version});
+                std.debug.print("NVML version: {s}\n", .{self.nvml_version});
+                for (self.gpus) |gpu| {
+                    std.debug.print("GPU{d}: {s}\n", .{ gpu.index, gpu.name });
+                }
             },
             .applycfg => {
                 const conf = config orelse {

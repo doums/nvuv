@@ -19,15 +19,17 @@ pub const Command = enum {
     reset,
     cfg,
     applycfg,
+    info,
 };
 
-// for internal use, mapped from SubCommands
+// for internal use, mapped from Commands
 pub const Op = enum {
     query,
     set,
     reset,
     showcfg,
     applycfg,
+    info,
     noop,
 };
 
@@ -37,6 +39,7 @@ pub const Parsed = union(Op) {
     reset: ResetHandler,
     showcfg: ConfigOption,
     applycfg: ConfigOption,
+    info,
     noop,
 };
 
@@ -48,7 +51,6 @@ pub const CliQueryProperty = enum {
     gpu, // all info about a GPU
     gn,
     gpun, // GPUs number
-    driver, // NVIDIA driver version
     ps, // supported P-states list
     pstates,
     psc, // GPU/MEM clocks and offsets
@@ -64,7 +66,6 @@ pub const CliQueryProperty = enum {
         return switch (self) {
             .gpu => .gpu,
             .gn, .gpun => .gpu_num,
-            .driver => .driver,
             .ps, .pstates => .pstates,
             .psc, .pstateclk => .pstate_clock,
             .w, .pl => .power_limit,
@@ -119,6 +120,7 @@ const main_help =
     \\  reset       Reset gpu settings to default (root required)
     \\  cfg         Print config file
     \\  applycfg    Apply settings from config file (root required)
+    \\  info        Print driver, NVML version and detected GPUs
     \\
     \\Options:
     \\  -h, --help       Print help
@@ -188,6 +190,7 @@ pub fn cli(args: std.process.Args, io: std.Io, gpa: std.mem.Allocator) !Parsed {
         .reset => try reset(io, gpa, &iter),
         .cfg => try config_commands(.showcfg, io, gpa, &iter, showcfg_help),
         .applycfg => try config_commands(.applycfg, io, gpa, &iter, applycfg_help),
+        .info => .info,
     };
 }
 
@@ -201,7 +204,6 @@ fn get(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) !Pa
         \\  <QUERY>   Possible values:
         \\    gpu               Print gpu info
         \\    gn, gpun          Print the number of gpus present on the system
-        \\    driver            Print NVIDIA driver version
         \\    ps, pstates       Print supported P-states list
         \\    psc, pstateclk    Print all P-states clocks and offsets
         \\    w, pl             Print power limit

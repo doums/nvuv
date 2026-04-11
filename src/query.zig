@@ -7,7 +7,6 @@ const Gpu = @import("gpu.zig").Gpu;
 pub const Query = enum {
     gpu, // all info about a GPU
     gpu_num, // GPUs number
-    driver, // NVIDIA driver version
     pstates, // supported P-states list
     pstate_clock, // GPU/MEM clocks and offsets
     power_limit,
@@ -22,7 +21,7 @@ pub const QueryHandler = struct {
     gpu: ?u16,
     pstate: ?u16,
 
-    pub fn run(self: QueryHandler, gpus: []const Gpu, driver: []const u8) !void {
+    pub fn run(self: QueryHandler, gpus: []const Gpu) !void {
         if (gpus.len == 0) unreachable;
 
         const index = self.gpu orelse 0;
@@ -35,7 +34,6 @@ pub const QueryHandler = struct {
         switch (self.query) {
             .gpu => gpus[index].print(),
             .gpu_num => std.debug.print("GPU count: {d}\n", .{gpus.len}),
-            .driver => std.debug.print("NVIDIA driver: {s}\n", .{driver}),
             .pstates => gpus[index].printSupportedPStates(),
             .pstate_clock => try gpus[index].printPStateClocks(self.pstate),
             .power_limit => gpu.printPowerLimit(),

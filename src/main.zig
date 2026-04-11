@@ -33,10 +33,10 @@ pub fn main(init: std.process.Init) !void {
     var nvml = try Nvml.init(gpa);
     defer nvml.deinit();
 
-    if (nvml.gpu_count == 0) {
+    if (nvml.gpu_count == 0 and parsed != .info) {
         std.log.warn("no GPU found", .{});
         return;
     }
     const userconf = if (config) |conf| conf.get() else null;
-    try nvml.exec(parsed, userconf);
+    try nvml.dispatch(parsed, userconf);
 }
