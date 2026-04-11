@@ -164,9 +164,7 @@ pub fn cli(args: std.process.Args, io: std.Io, gpa: std.mem.Allocator) !Parsed {
         .terminating_positional = 0,
     }) catch |err| {
         report(diag, err);
-        std.debug.print("Usage: {s} ", .{bin_name});
         try printUsage(io, &main_params, null);
-        std.debug.print("\n", .{});
         return err;
     };
     defer res.deinit();
@@ -484,6 +482,7 @@ fn report(diag: clap.Diagnostic, err: anyerror) void {
             "Invalid argument '{s}{s}'",
             .{ longest.kind.prefix(), longest.name },
         ),
+        error.NameNotPartOfEnum => std.log.err("Invalid command", .{}),
         else => std.log.err("Error while parsing arguments: {s}", .{@errorName(err)}),
     }
 }
