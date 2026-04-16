@@ -6,15 +6,17 @@ const toml = @import("toml");
 
 const default_config_file = "/etc/nvuv/nvuv.toml";
 
-pub const ClockRange = struct {
+const Range = struct {
     min: ?u32,
     max: u32,
 };
 
+pub const ClockConfig = union(enum) { locked: Range, reset: u8 };
+
 pub const GpuConfig = struct {
     power_limit: ?u32,
-    gpu_locked_clocks: ?*ClockRange,
-    mem_locked_clocks: ?*ClockRange,
+    gpu_clocks: ?*ClockConfig,
+    mem_clocks: ?*ClockConfig,
     gpu_offset: ?i32,
     mem_offset: ?i32,
 };

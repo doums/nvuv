@@ -63,24 +63,31 @@ Then tune - **root required**
 Edit the file to set desired settings:
 
 ```toml
-# comment any property to keep the default
+# Comment any property to keep the default
 
 [[gpu]]
 power_limit = 175 # W
 gpu_offset = 200 # MHz
 mem_offset = 500
 
-[gpu.gpu_locked_clocks]
-# comment min value to use the lowest default freq
+[gpu.gpu_clocks.locked]
+# Comment min value to use the lowest default freq
 min = 200 # MHz
 max = 2400
 
-# if you want to lock memory clock uncomment
-# [gpu.mem_locked_clocks]
+# To lock memory clock uncomment
+# [gpu.mem_clocks.locked]
 # min = 123
 # max = 1234
 
-# if multi GPUs add more section as needed
+# Reset clocks to default value
+# Useful for switching between different configs for different use cases
+# [gpu.gpu_clocks]
+# reset = 1
+# [gpu.mem_clocks]
+# reset = 1
+
+# If multi GPUs add more section as needed
 # [[gpu]]
 # …
 ```

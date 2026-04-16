@@ -12,23 +12,26 @@
 # gpu_offset = 200 # MHz
 # mem_offset = 400
 
-# [gpu.gpu_locked_clocks]
+# [gpu.gpu_clocks.locked]
 # If min value is not provided, it will be set to the lowest
 # supported clock
 # Max value is required
 # max = 2400 # MHz
 # min = 180 # MHz
 
-# [gpu.mem_locked_clocks]
+# [gpu.mem_clocks.locked]
 # max = 1234
 # min = 123
 
-# If you have more than one GPU, add another section for each
+# Reset clocks to default value
+# Useful for switching between different configs for different use cases
+# [gpu.gpu_clocks]
+# reset = 1
+# [gpu.mem_clocks]
+# reset = 1
+
+# For multi GPUs add more section as needed
 
 # GPU1
 # [[gpu]]
-# power_limit = 200
-# [gpu.gpu_locked_clocks]
-# max = 3000
-
 # …

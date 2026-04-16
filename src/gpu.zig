@@ -9,6 +9,7 @@ const ClkType = @import("pstates.zig").ClkType;
 const nvmlCheck = @import("c.zig").nvmlCheck;
 const Pstates = @import("pstates.zig").Pstates;
 const GpuConfig = @import("config.zig").GpuConfig;
+const ClockConfig = @import("config.zig").ClockConfig;
 
 const power_scope = c.NVML_POWER_SCOPE_GPU;
 const dev_name_buf = c.NVML_DEVICE_NAME_V2_BUFFER_SIZE;
@@ -376,6 +377,13 @@ pub const Gpu = struct {
         }
     }
 
+    fn applyClockConfig(self: *const Gpu, comptime clkt: ClkType, cfg: *const ClockConfig) !void {
+        switch (cfg.*) {
+            .locked => |range| try self.setLockedClock(clkt, range.max, range.min),
+            .reset => |r| if (r == 1) try self.resetLockedClock(clkt),
+        }
+    }
+
     pub fn applyConfig(self: *const Gpu, config: GpuConfig) void {
         std.debug.print("GPU{d}: applying config\n", .{self.index});
         var error_hit: u32 = 0;
@@ -385,15 +393,29 @@ pub const Gpu = struct {
                 error_hit += 1;
             };
         }
-        if (config.gpu_locked_clocks) |range| {
-            self.setLockedClock(.gpu, range.max, range.min) catch |err| {
-                std.log.err("GPU{d}: failed to set gpu locked clock: {s}", .{ self.index, @errorName(err) });
+        if (config.gpu_clocks) |cfg| {
+            self.applyClockConfig(.gpu, cfg) catch |err| {
+                std.log.err(
+                    "GPU{d}: failed to {s} gpu locked clock: {s}",
+                    .{
+                        self.index,
+                        if (cfg.* == .locked) "set" else "reset",
+                        @errorName(err),
+                    },
+                );
                 error_hit += 1;
             };
         }
-        if (config.mem_locked_clocks) |range| {
-            self.setLockedClock(.mem, range.max, range.min) catch |err| {
-                std.log.err("GPU{d}: failed to set memory locked clock: {s}", .{ self.index, @errorName(err) });
+        if (config.mem_clocks) |cfg| {
+            self.applyClockConfig(.mem, cfg) catch |err| {
+                std.log.err(
+                    "GPU{d}: failed to {s} memory locked clock: {s}",
+                    .{
+                        self.index,
+                        if (cfg.* == .locked) "set" else "reset",
+                        @errorName(err),
+                    },
+                );
                 error_hit += 1;
             };
         }
