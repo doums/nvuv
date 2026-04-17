@@ -190,7 +190,7 @@ pub fn cli(args: std.process.Args, io: std.Io, gpa: std.mem.Allocator) !Parsed {
         .reset => try reset(io, gpa, &iter),
         .cfg => try config_commands(.showcfg, io, gpa, &iter, showcfg_help),
         .applycfg => try config_commands(.applycfg, io, gpa, &iter, applycfg_help),
-        .info => .info,
+        .info => try info(io, gpa, &iter),
     };
 }
 
@@ -453,6 +453,41 @@ fn config_commands(
     return @unionInit(Parsed, @tagName(op), .{
         .path = res.args.config,
     });
+}
+
+fn info(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) !Parsed {
+    const help =
+        \\Print driver, NVML version and detected GPUs
+        \\
+        \\Usage: nvuv info [OPTIONS]
+        \\
+        \\Options:
+        \\
+    ;
+
+    const options =
+        \\  -h, --help    Print help
+        \\
+    ;
+
+    const params = comptime clap.parseParamsComptime(options);
+
+    var diag = clap.Diagnostic{};
+    var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
+        .diagnostic = &diag,
+        .allocator = gpa,
+    }) catch |err| {
+        report(diag, err);
+        try printUsage(io, &params, "info");
+        return err;
+    };
+    defer res.deinit();
+
+    if (res.args.help != 0) {
+        std.debug.print("{s}{s}\n", .{help, options});
+        return .noop;
+    }
+    return .info;
 }
 
 fn printUsage(io: std.Io, params: anytype, subcmd: ?[]const u8) !void {
