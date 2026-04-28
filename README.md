@@ -127,8 +127,6 @@ ExecStart=/usr/bin/nvuv applycfg --config /path/to/config.toml
 
 `nvuv` is a thin wrapper around NVIDIA's [NVML library](https://docs.nvidia.com/deploy/nvml-api/)
 
-_trad' coded with my human hands_
-
 ---
 
 ### NVIDIA undervolt on Linux?
@@ -144,8 +142,10 @@ We have to trick and use a technique: _indirect undervolting_
 Result: the GPU runs at (roughly) the same performance with lower
 voltage and power draw, reducing temp and fan noise
 
-
 ## License
 
-Apache License 2.0
+Apache License 2.0 WITH Commons-Clause-1.0
 
+---
+
+_trad' coded_

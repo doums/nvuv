@@ -1,16 +1,16 @@
 .{
     .name = .nvuv,
-    .version = "0.2.1",
+    .version = "0.2.2",
     .fingerprint = 0x41ef1274ed5bfde3,
-    .minimum_zig_version = "0.16.0-dev.3013+abd131e33",
+    .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .toml = .{
             .url = "git+https://github.com/sam701/zig-toml#a73c9423d88ed413204b39638fab7e9bccdb83fd",
             .hash = "toml-0.3.0-bV14Be6EAQDr0fkyURz4jYFyTAMPcwlNN0FEPVjDnXTR",
         },
         .clap = .{
-            .url = "git+https://github.com/Hejsil/zig-clap#fc1e5cc3f6d9d3001112385ee6256d694e959d2f",
-            .hash = "clap-0.11.0-oBajB7foAQC3Iyn4IVCkUdYaOVVng5IZkSncySTjNig1",
+            .url = "https://github.com/Hejsil/zig-clap/archive/refs/tags/0.12.0.tar.gz",
+            .hash = "clap-0.12.0-oBajB7foAQDqlSwaSG5g0yq7xGbQARUsBk5T64gAOqP5",
         },
     },
     .paths = .{
