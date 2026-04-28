@@ -58,7 +58,7 @@ pub const Gpu = struct {
         var curr_power_limit_w: c_uint = 0;
         var num_cores: c_uint = 0;
         var arch: c_uint = 0;
-        var link_gen: c_uint = 0;
+        var link_gen_curr: c_uint = 0;
         var link_gen_max: c_uint = 0;
         var link_width: c_uint = 0;
         var max_link_width: c_uint = 0;
@@ -84,7 +84,7 @@ pub const Gpu = struct {
         try nvmlCheck(c.nvmlDeviceGetNumGpuCores(device, &num_cores));
         try nvmlCheck(c.nvmlDeviceGetArchitecture(device, &arch));
         try nvmlCheck(c.nvmlDeviceGetMaxPcieLinkGeneration(device, &link_gen_max));
-        try nvmlCheck(c.nvmlDeviceGetCurrPcieLinkGeneration(device, &link_gen));
+        try nvmlCheck(c.nvmlDeviceGetCurrPcieLinkGeneration(device, &link_gen_curr));
         try nvmlCheck(c.nvmlDeviceGetMaxPcieLinkWidth(device, &max_link_width));
         try nvmlCheck(c.nvmlDeviceGetCurrPcieLinkWidth(device, &link_width));
         try nvmlCheck(c.nvmlDeviceGetPcieLinkMaxSpeed(device, &max_link_speed));
@@ -124,7 +124,7 @@ pub const Gpu = struct {
             .memory_total = memory_info.total,
             .cuda_cores = num_cores,
             .arch = arch,
-            .link_gen = link_gen,
+            .link_gen = link_gen_curr,
             .max_link_gen = link_gen_max,
             .link_width = link_width,
             .max_link_width = max_link_width,
@@ -156,8 +156,7 @@ pub const Gpu = struct {
             \\CUDA cores: {d}
             \\VRAM size: {d:.2} GiB
             \\Resizable BAR1: {s} ({d} MiB)
-            \\PCIe link: Gen {d} x{d} (max Gen {d} x{d})
-            \\PCIe link max: Gen {d}
+            \\PCIe link: Gen {d} x{d} (max Gen {})
             \\
         , .{
             self.index,
@@ -172,10 +171,8 @@ pub const Gpu = struct {
             total_gib,
             if (self.bar1) "Yes" else "No",
             self.bar1_mem / mib,
-            self.link_gen,
-            self.link_width,
             self.max_link_gen,
-            self.max_link_width,
+            self.link_width,
             linkSpeedToGen(self.max_link_speed) catch 0,
         });
     }
