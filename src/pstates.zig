@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Pierre Dommerc
 
 const std = @import("std");
-const c = @import("c.zig").c;
+const c = @import("nvml");
 const nvmlCheck = @import("c.zig").nvmlCheck;
 const nvmlClockOffset_v1 = @import("c.zig").nvmlClockOffset_v1;
 

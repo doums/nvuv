@@ -1,9 +1,13 @@
 .{
     .name = .nvuv,
-    .version = "0.2.2",
+    .version = "0.2.3",
     .fingerprint = 0x41ef1274ed5bfde3,
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0-dev",
     .dependencies = .{
+        .nvml = .{
+            .url = "https://developer.download.nvidia.com/compute/cuda/redist/cuda_nvml_dev/linux-x86_64/cuda_nvml_dev-linux-x86_64-13.2.82-archive.tar.xz",
+            .hash = "N-V-__8AAM7FFwCGtOgHLzEYxO2pdTOseOP6fQyQyJb9qBBd",
+        },
         .toml = .{
             .url = "git+https://github.com/sam701/zig-toml#a73c9423d88ed413204b39638fab7e9bccdb83fd",
             .hash = "toml-0.3.0-bV14Be6EAQDr0fkyURz4jYFyTAMPcwlNN0FEPVjDnXTR",

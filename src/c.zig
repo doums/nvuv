@@ -2,10 +2,7 @@
 // Copyright (c) 2026 Pierre Dommerc
 
 const std = @import("std");
-
-pub const c = @cImport({
-    @cInclude("nvml.h");
-});
+const c = @import("nvml");
 
 // https://codeberg.org/ziglang/translate-c/issues/314
 // Some variable are defined via a C macro using token pasting (##).

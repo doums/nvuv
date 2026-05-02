@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Pierre Dommerc
 
 const std = @import("std");
-const c = @import("c.zig").c;
+const c = @import("nvml");
 const nvmlCheck = @import("c.zig").nvmlCheck;
 const Gpu = @import("gpu.zig").Gpu;
 const Parsed = @import("cli.zig").Parsed;

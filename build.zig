@@ -9,6 +9,14 @@ pub fn build(b: *std.Build) void {
     options.addOption([]const u8, "name", @tagName(zon.name));
     options.addOption([]const u8, "version", zon.version);
 
+    const libnvml = b.dependency("nvml", .{});
+    const t_nvml = b.addTranslateC(.{
+        .root_source_file = libnvml.path("include/nvml.h"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const nvml_mod = t_nvml.createModule();
+
     const exe = b.addExecutable(.{
         .name = "nvuv",
         .root_module = b.createModule(.{
@@ -16,15 +24,16 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                // .{ .name = "nvuv", .module = mod },
+                .{ .name = "nvml", .module = nvml_mod },
             },
-            .link_libc = true, // required for nvml
+            .link_libc = true,
         }),
     });
 
+    // static linking to nvml
+    exe.root_module.addObjectFile(libnvml.path("lib/stubs/libnvidia-ml.a"));
+
     exe.root_module.addOptions("buildmeta", options);
-    exe.root_module.addIncludePath(b.path("include"));
-    exe.root_module.linkSystemLibrary("nvidia-ml", .{});
 
     const clap = b.dependency("clap", .{
         .target = target,
