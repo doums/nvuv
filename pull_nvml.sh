@@ -1,13 +1,23 @@
 #!/bin/bash
 
-# NOTE: nvml.h get from https://github.com/NVIDIA/nvidia-settings/blob/main/src/nvml.h
-# No official source apart from
-# https://anaconda.org/channels/nvidia/packages/cuda-nvml-dev/files
-# which provides .conda packages, so not useful.
+# Get nvml.h from https://developer.download.nvidia.com/compute/cuda/redist/cuda_nvml_dev/linux-x86_64/
 
-# TODO: this is **YOLO** considering the risk of incompatibility
+# TODO: kinda **YOLO** considering the risk of incompatibility
 # between the header and the actual lib version present in the system
-# Eg. for Arch probably better to switch to the one living in Arch
-# `cuda` package
+# Ideally we should use the same version of the header as the one present in the system
+# eg. on Arch it is provided by the nvidia-utils package
+# In the future consider static linking to eliminate compat issue
 
-curl -LSsf -o include/nvml.h https://raw.githubusercontent.com/NVIDIA/nvidia-settings/refs/heads/main/src/nvml.h
+version=13.2.82
+archive="cuda_nvml_dev-linux-x86_64-$version-archive"
+archive_xz="$archive.tar.xz"
+url="https://developer.download.nvidia.com/compute/cuda/redist/cuda_nvml_dev/linux-x86_64/$archive_xz"
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+curl -LSsf -o "$tmp/$archive_xz" "$url"
+tar -xf "$tmp/$archive_xz" -C "$tmp"
+mv "$tmp/$archive/include/nvml.h" ./include/
+
+echo 'DONE'
