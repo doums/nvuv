@@ -1,6 +1,6 @@
 # nvuv
 
-CLI tool for undervolting NVIDIA gpu on Linux
+CLI tool for undervolting (_indirect_) and overclocking NVIDIA gpu on Linux
 
 ## Install
 

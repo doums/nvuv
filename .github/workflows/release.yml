@@ -43,7 +43,8 @@ jobs:
       - name: Install Zig master
         uses: mlugg/setup-zig@v2
         with:
-          version: master
+          # TODO switch to master
+          version: 0.17.0-dev.224+c166c49b1
 
       - name: Build
         run: |

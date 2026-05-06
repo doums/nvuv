@@ -110,7 +110,7 @@ const main_params = clap.parseParamsComptime(
 );
 
 const main_help =
-    \\CLI tool for undervolting NVIDIA gpu
+    \\CLI tool for undervolting and overclocking NVIDIA gpu
     \\
     \\Usage: nvuv [OPTIONS] [COMMAND]
     \\

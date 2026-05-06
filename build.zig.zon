@@ -1,6 +1,6 @@
 .{
     .name = .nvuv,
-    .version = "0.2.3",
+    .version = "0.2.4",
     .fingerprint = 0x41ef1274ed5bfde3,
     .minimum_zig_version = "0.17.0-dev",
     .dependencies = .{

@@ -3,7 +3,7 @@
 pkgname=nvuv
 pkgver=PLACEHOLDER
 pkgrel=1
-pkgdesc='CLI tool for undervolting NVIDIA gpu'
+pkgdesc='CLI tool for undervolting and overclocking NVIDIA gpu'
 arch=('x86_64')
 url='https://github.com/doums/nvuv'
 license=('Apache-2.0 WITH Commons-Clause')
