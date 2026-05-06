@@ -54,6 +54,12 @@ Then tune - **root required**
 > sudo nvuv set mo 500
 ```
 
+To reset to default - **root required**
+
+```sh
+> sudo nvuv reset
+```
+
 > [!IMPORTANT]
 > Settings changes do not survive reboot/resume or driver reload.\
 > For this, a systemd service is provided to apply a config

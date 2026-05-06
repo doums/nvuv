@@ -364,12 +364,13 @@ fn set(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) !Pa
 
 fn reset(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) !Parsed {
     const help =
-        \\Reset GPU settings to default (requires root)
+        \\Reset GPU settings to default (requires root).
+        \\If no PROPERTY is given, reset all properties.
         \\
-        \\Usage: nvuv reset [OPTIONS] <PROPERTY>
+        \\Usage: nvuv reset [OPTIONS] [PROPERTY]
         \\
         \\Arguments:
-        \\  <PROPERTY>  Possible values:
+        \\  [PROPERTY]  Possible values:
         \\    w, pl         Reset power limit
         \\    gl, gc        Reset gpu locked clock
         \\    ml, mc        Reset memory locked clock
@@ -410,12 +411,7 @@ fn reset(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) !
         std.debug.print("{s}\n", .{help});
         return .noop;
     }
-    if (res.positionals[0] == null) {
-        std.log.err("Missing argument: PROPERTY", .{});
-        try printUsage(io, &params, "reset");
-        return error.MissingArgument;
-    }
-    const property: Query = res.positionals[0].?.toQuery();
+    const property = if (res.positionals[0]) |prop| prop.toQuery() else null;
 
     return .{ .reset = .{
         .property = property,
@@ -484,7 +480,7 @@ fn info(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) !P
     defer res.deinit();
 
     if (res.args.help != 0) {
-        std.debug.print("{s}{s}\n", .{help, options});
+        std.debug.print("{s}{s}\n", .{ help, options });
         return .noop;
     }
     return .info;

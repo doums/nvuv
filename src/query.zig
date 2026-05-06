@@ -94,7 +94,7 @@ pub const SetHandler = struct {
 };
 
 pub const ResetHandler = struct {
-    property: Query,
+    property: ?Query,
     gpu: ?u16,
 
     pub fn run(self: ResetHandler, gpus: []Gpu) !void {
@@ -107,13 +107,21 @@ pub const ResetHandler = struct {
         }
         const gpu = &gpus[index];
 
-        switch (self.property) {
-            .power_limit => try gpu.resetPowerLimit(),
-            .gpu_clock => try gpu.resetLockedClock(.gpu),
-            .mem_clock => try gpu.resetLockedClock(.mem),
-            .gpu_clock_offset => try gpu.setClockOffset(.gpu, 0),
-            .mem_clock_offset => try gpu.setClockOffset(.mem, 0),
-            else => unreachable,
+        if (self.property) |prop| {
+            switch (prop) {
+                .power_limit => try gpu.resetPowerLimit(),
+                .gpu_clock => try gpu.resetLockedClock(.gpu),
+                .mem_clock => try gpu.resetLockedClock(.mem),
+                .gpu_clock_offset => try gpu.setClockOffset(.gpu, 0),
+                .mem_clock_offset => try gpu.setClockOffset(.mem, 0),
+                else => unreachable,
+            }
+        } else {
+            try gpu.resetPowerLimit();
+            try gpu.resetLockedClock(.gpu);
+            try gpu.resetLockedClock(.mem);
+            try gpu.setClockOffset(.gpu, 0);
+            try gpu.setClockOffset(.mem, 0);
         }
     }
 };
