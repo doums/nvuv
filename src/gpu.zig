@@ -445,6 +445,7 @@ fn archToString(arch: usize) []const u8 {
         c.NVML_DEVICE_ARCH_ADA => "Ada",
         c.NVML_DEVICE_ARCH_HOPPER => "Hopper",
         c.NVML_DEVICE_ARCH_BLACKWELL => "Blackwell",
+        c.NVML_DEVICE_ARCH_RUBIN => "Rubin",
         else => "Unknown",
     };
 }
