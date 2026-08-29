@@ -12,52 +12,48 @@ CLI tool for undervolting (_indirect_) and overclocking NVIDIA gpu on Linux
 > [!TIP]
 > `nvuv -h`
 
-First check your GPU's supported power limits, clock and offset ranges
+First check your GPU specs
 
 ```sh
-> nvuv get w
+> nvuv get
 power limit: 250W (default: 250W, range: 175..250W)
-
-> nvuv get gc
 gpu clock range: 200..3000MHz
-
-> nvuv get mc
 memory clock range: 400..15000MHz
-
-> nvuv get go
 gpu clock offset: 0MHz (-1000..1000)
-
-> nvuv get mo
 memory clock offset: 0MHz (-2000..6000)
 
-# or in one command listing all P-states
-> nvuv get psc
+# by P-states
+> nvuv ps
+
+# query a given P-states
+> nvuv get 0
+> nvuv ps 0
+
+# print general gpu(s) info
+> nvuv gpu
 ```
 
 > [!TIP]
-> Use `-g GPU_INDEX` to set a specific GPU if you have multiple
+> Use `-i GPU_INDEX` to select a specific GPU if you have multiple
 
 Then tune - **root required**
 
 ```sh
 # Set power limit to 175 W
-> sudo nvuv set w 175
+> sudo nvuv set -w 175
 
 # Lock gpu clock between 200..2400 MHz
-> sudo nvuv set gl 2400 200
-# If needed lock memory clock with `ml`
+> sudo nvuv set -g 200..2400
+# If needed lock memory clock with `-m`
 
-# Set gpu clock offset to +200 MHz (support negative)
-> sudo nvuv set go 200
-
-# Set memory clock offset to +500 MHz
-> sudo nvuv set mo 500
+# Set gpu/memory clock offset to +200/+500 MHz (support negative)
+> sudo nvuv set -G 200 -M 500
 ```
 
 To reset to default - **root required**
 
 ```sh
-> sudo nvuv reset
+> sudo nvuv reset -A
 ```
 
 > [!IMPORTANT]
@@ -99,13 +95,8 @@ max = 2400
 ```
 
 > [!TIP]
+> Run `nvuv cfg` to check the config is valid
 > Use `--config /path/to/config.toml` to specify a custom config file
-
-Check the config is valid
-
-```sh
-> nvuv cfg
-```
 
 To apply the config immediately - **root required**
 
@@ -142,7 +133,7 @@ Windows and popular tools like MSI Afterburner).\
 Voltage-freq curve is locked at driver level.\
 We have to trick and use a technique: _indirect undervolting_
 
-1. Lock the GPU's maximum clock speed
+1. Lock the GPU's maximum clock speed (underclocking)
 2. Apply a positive clock offset (overclocking) to the locked range
 
 Result: the GPU runs at (roughly) the same performance with lower

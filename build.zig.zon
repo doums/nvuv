@@ -1,6 +1,6 @@
 .{
     .name = .nvuv,
-    .version = "0.2.6",
+    .version = "0.3.0",
     .fingerprint = 0x41ef1274ed5bfde3,
     .minimum_zig_version = "0.17.0-dev",
     .dependencies = .{
@@ -9,8 +9,8 @@
             .hash = "N-V-__8AABgvGACTupA-FBe1X6ND6GWuiyGf5SUjm-w2FLeL",
         },
         .toml = .{
-            .url = "git+https://github.com/sam701/zig-toml#de542063f104e0ffb87bef19c55131ab0fbbc0b7",
-            .hash = "toml-0.3.0-bV14BaWMAQBmIxIiAqiMID-5sOpd41iZHrGCz0_fYUOh",
+            .url = "git+https://github.com/sam701/zig-toml#c661327bd9f02f774426c4fe78f60621411b7173",
+            .hash = "toml-0.3.0-bV14BRmkAQDSILPPyXc31aAXPtJa1Uh8Frug3i6InAUc",
         },
         .clap = .{
             .url = "git+https://github.com/Hejsil/zig-clap#e91d66b1abba2024cd2e816426f14d233d3dad9a",

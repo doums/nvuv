@@ -1,7 +1,7 @@
 # nvuv default config file
 
 # For multi GPU systems, first identify the GPU indexes
-# run: `nvuv get gpu`.
+# run: `nvuv gpu`.
 # Then add a section for each GPU in their respective order.
 
 # Comment out any option to keep it at default value

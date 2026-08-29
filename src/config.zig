@@ -30,6 +30,7 @@ pub const Config = struct {
 
     pub fn load(io: std.Io, allocator: std.mem.Allocator, config_path: ?[]const u8) !Config {
         var parser = toml.Parser(UserConfig).init(allocator);
+        parser.options.disallow_unknown_fields = true;
         defer parser.deinit();
 
         const path = config_path orelse default_config_file;

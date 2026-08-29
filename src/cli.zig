@@ -7,13 +7,11 @@ const clap = @import("clap");
 const bin_name = @import("buildmeta").name;
 const bin_version = @import("buildmeta").version;
 
-const Query = @import("query.zig").Query;
-const QueryHandler = @import("query.zig").QueryHandler;
-const SetHandler = @import("query.zig").SetHandler;
-const ResetHandler = @import("query.zig").ResetHandler;
-const PropValue = @import("query.zig").PropValue;
-
 pub const Command = enum {
+    gpu,
+    gpun,
+    ps, // by P-state gpu/mem clocks and offsets
+    psn,
     get,
     set,
     reset,
@@ -22,9 +20,13 @@ pub const Command = enum {
     info,
 };
 
-// for internal use, mapped from Commands
+// for internal use, commands into parsed result mapping
 pub const Op = enum {
-    query,
+    gpu,
+    gpus,
+    pstate,
+    pstates,
+    get,
     set,
     reset,
     showcfg,
@@ -34,9 +36,30 @@ pub const Op = enum {
 };
 
 pub const Parsed = union(Op) {
-    query: QueryHandler,
-    set: SetHandler,
-    reset: ResetHandler,
+    gpu: struct {
+        gpu: ?u16,
+    },
+    gpus,
+    pstate: struct {
+        gpu: ?u16,
+        pstate: ?u16,
+    },
+    pstates: struct {
+        gpu: ?u16,
+    },
+    get: struct {
+        props: GetGpuProps,
+        gpu: ?u16,
+        pstate: ?u16,
+    },
+    set: struct {
+        props: SetGpuProps,
+        gpu: ?u16,
+    },
+    reset: struct {
+        props: GetGpuProps,
+        gpu: ?u16,
+    },
     showcfg: ConfigOption,
     applycfg: ConfigOption,
     info,
@@ -47,65 +70,45 @@ pub const ConfigOption = struct {
     path: ?[]const u8,
 };
 
-pub const CliQueryProperty = enum {
-    gpu, // all info about a GPU
-    gn,
-    gpun, // GPUs number
-    ps, // supported P-states list
-    pstates,
-    psc, // GPU/MEM clocks and offsets
-    pstateclk,
-    w, // power limit - current, min/max
-    pl,
-    gc, // gpu clock - min/max only
-    mc, // memory clock - min/max only
-    go, // gpu clock offset - current, min/max
-    mo, // memory clock offset - current, min/max
+pub const GetGpuProps = struct {
+    power_limit: ?bool = null,
+    gpu_clock: ?bool = null,
+    mem_clock: ?bool = null,
+    gpu_clock_offset: ?bool = null,
+    mem_clock_offset: ?bool = null,
 
-    fn toQuery(self: CliQueryProperty) Query {
-        return switch (self) {
-            .gpu => .gpu,
-            .gn, .gpun => .gpu_num,
-            .ps, .pstates => .pstates,
-            .psc, .pstateclk => .pstate_clock,
-            .w, .pl => .power_limit,
-            .gc => .gpu_clock,
-            .mc => .mem_clock,
-            .go => .gpu_clock_offset,
-            .mo => .mem_clock_offset,
+    fn default() GetGpuProps {
+        return GetGpuProps{
+            .power_limit = true,
+            .gpu_clock = true,
+            .mem_clock = true,
+            .gpu_clock_offset = true,
+            .mem_clock_offset = true,
         };
     }
 };
 
-pub const CliSetProperty = enum {
-    w, // power limit
-    pl,
-    gl, // gpu locked clock
-    gc,
-    ml, // memory locked clock
-    mc,
-    go, // gpu clock offset
-    mo, // memory clock offset
+const Range = struct {
+    min: ?u32,
+    max: ?u32,
+};
 
-    fn toQuery(self: CliSetProperty) Query {
-        return switch (self) {
-            .w, .pl => .power_limit,
-            .gl, .gc => .gpu_clock,
-            .ml, .mc => .mem_clock,
-            .go => .gpu_clock_offset,
-            .mo => .mem_clock_offset,
-        };
-    }
+pub const SetGpuProps = struct {
+    power_limit: ?u32 = null,
+    gpu_clock: ?Range = null,
+    mem_clock: ?Range = null,
+    gpu_clock_offset: ?i32 = null,
+    mem_clock_offset: ?i32 = null,
 };
 
 const main_parsers = .{
-    .command = clap.parsers.enumeration(Command),
+    .CMD = clap.parsers.enumeration(Command),
 };
 
 const main_params = clap.parseParamsComptime(
-    \\-h, --help           Print help
-    \\-v, --version        Print version
-    \\<command>
+    \\-h, --help
+    \\-v, --version
+    \\<CMD>
     \\
 );
 
@@ -115,10 +118,14 @@ const main_help =
     \\Usage: nvuv [OPTIONS] [COMMAND]
     \\
     \\Commands:
-    \\  get         Query gpu settings
+    \\  gpu         Print gpu info
+    \\  gpun        Print number of detected GPUs
+    \\  ps          Print clocks and offsets by P-state
+    \\  psn         Print supported P-states
+    \\  get         Get gpu settings
     \\  set         Set gpu settings (root required)
     \\  reset       Reset gpu settings to default (root required)
-    \\  cfg         Print config file
+    \\  cfg         Print parsed config file (debug)
     \\  applycfg    Apply settings from config file (root required)
     \\  info        Print driver, NVML version and detected GPUs
     \\
@@ -129,11 +136,12 @@ const main_help =
 ;
 
 const showcfg_help =
-    \\Print config file
+    \\Print parsed config file (debug)
     \\
     \\Usage: nvuv cfg [OPTIONS]
     \\
     \\Options:
+    \\
 ;
 
 const applycfg_help =
@@ -142,11 +150,12 @@ const applycfg_help =
     \\Usage: nvuv applycfg [OPTIONS]
     \\
     \\Options:
+    \\
 ;
 
 const config_command_options =
-    \\  -h, --help             Print help
-    \\  -c, --config <FILE>    Path to config file (default: /etc/nvuv/nvuv.toml)
+    \\  -c, --config <FILE>   Path to config file (default: /etc/nvuv/nvuv.toml)
+    \\  -h, --help            Print help
     \\
 ;
 
@@ -165,9 +174,9 @@ pub fn cli(args: std.process.Args, io: std.Io, gpa: std.mem.Allocator) !Parsed {
         .allocator = gpa,
         .terminating_positional = 0,
     }) catch |err| {
-        report(diag, err);
+        report(diag, err, .{ .top_level = true });
         try printUsage(io, &main_params, null);
-        return err;
+        return parseErrOut(err);
     };
     defer res.deinit();
 
@@ -185,6 +194,10 @@ pub fn cli(args: std.process.Args, io: std.Io, gpa: std.mem.Allocator) !Parsed {
         return .noop;
     };
     return switch (command) {
+        .gpu => try gpu(io, gpa, &iter),
+        .gpun => try gpun(io, gpa, &iter),
+        .ps => try pstate(io, gpa, &iter),
+        .psn => try pstaten(io, gpa, &iter),
         .get => try get(io, gpa, &iter),
         .set => try set(io, gpa, &iter),
         .reset => try reset(io, gpa, &iter),
@@ -196,33 +209,33 @@ pub fn cli(args: std.process.Args, io: std.Io, gpa: std.mem.Allocator) !Parsed {
 
 fn get(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) !Parsed {
     const help =
-        \\Query GPU settings
+        \\Get GPU settings
         \\
-        \\Usage: nvuv get [OPTIONS] <QUERY> [PSTATE]
+        \\Usage: nvuv get [OPTIONS] [PSTATE]
         \\
         \\Arguments:
-        \\  <QUERY>   Possible values:
-        \\    gpu               Print gpu info
-        \\    gn, gpun          Print the number of gpus present on the system
-        \\    ps, pstates       Print supported P-states list
-        \\    psc, pstateclk    Print all P-states clocks and offsets
-        \\    w, pl             Print power limit
-        \\    gc                Print gpu clocks (range only)
-        \\    mc                Print memory clocks (range only)
-        \\    go                Print gpu clock offsets
-        \\    mo                Print memory clock offsets
         \\  [PSTATE]  Query specific P-state by index (0-based)
         \\
         \\Options:
-        \\  -h, --help         Print help
-        \\  -g, --gpu <GPU>    Query specific gpu by index (0-based)
+        \\  -w, --power-limit   Print power limit
+        \\  -g, --gpu-clock     Print gpu clocks (range only)
+        \\  -m, --mem-clock     Print memory clocks (range only)
+        \\  -G, --gpu-offset    Print gpu clock offsets
+        \\  -M, --mem-offset    Print memory clock offsets
+        \\  -i, --gpu-index <GPU>
+        \\        Query a specific gpu by index (0-based)
+        \\  -h, --help          Print help
         \\
     ;
 
     const options =
-        \\  -h, --help         Print help
-        \\  -g, --gpu <GPU>    Query specific gpu by index (0-based)
-        \\  <QUERY>
+        \\  -w, --power-limit
+        \\  -g, --gpu-clock
+        \\  -m, --mem-clock
+        \\  -G, --gpu-offset
+        \\  -M, --mem-offset
+        \\  -i, --gpu-index <GPU>
+        \\  -h, --help
         \\  <PSTATE>
         \\
     ;
@@ -230,7 +243,6 @@ fn get(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) !Pa
     const params = comptime clap.parseParamsComptime(options);
     const parsers = comptime .{
         .GPU = clap.parsers.int(u16, 10),
-        .QUERY = clap.parsers.enumeration(CliQueryProperty),
         .PSTATE = clap.parsers.int(u16, 10),
     };
 
@@ -239,25 +251,32 @@ fn get(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) !Pa
         .diagnostic = &diag,
         .allocator = gpa,
     }) catch |err| {
-        report(diag, err);
+        report(diag, err, .{});
         try printUsage(io, &params, "get");
-        return err;
+        return parseErrOut(err);
     };
     defer res.deinit();
 
     if (res.args.help != 0) {
-        std.debug.print("{s}\n", .{help});
+        std.debug.print(help, .{});
         return .noop;
     }
-    if (res.positionals[0] == null) {
-        std.log.err("Missing argument: QUERY", .{});
-        try printUsage(io, &params, "get");
-        return error.MissingArgument;
+
+    var props: GetGpuProps = .{};
+    if (res.args.@"power-limit" != 0) props.power_limit = true;
+    if (res.args.@"gpu-clock" != 0) props.gpu_clock = true;
+    if (res.args.@"mem-clock" != 0) props.mem_clock = true;
+    if (res.args.@"gpu-offset" != 0) props.gpu_clock_offset = true;
+    if (res.args.@"mem-offset" != 0) props.mem_clock_offset = true;
+
+    if (!hasFieldSet(props)) {
+        props = GetGpuProps.default();
     }
-    return .{ .query = .{
-        .query = res.positionals[0].?.toQuery(),
-        .gpu = res.args.gpu,
-        .pstate = res.positionals[1],
+
+    return .{ .get = .{
+        .props = props,
+        .gpu = res.args.@"gpu-index",
+        .pstate = res.positionals[0],
     } };
 }
 
@@ -265,41 +284,42 @@ fn set(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) !Pa
     const help =
         \\Set GPU settings (requires root)
         \\
-        \\Usage: nvuv set [OPTIONS] <PROPERTY> <VALUE> [MINVAL]
-        \\
-        \\Arguments:
-        \\  <PROPERTY>  Possible values:
-        \\    w, pl         Set power limit (W)
-        \\    gl, gc        Set gpu locked clock (MHz)
-        \\    ml, mc        Set memory locked clock (MHz)
-        \\    go            Set gpu clock offset (MHz)
-        \\    mo            Set memory clock offset (MHz)
-        \\  <VALUE>     Property value, W or MHz
-        \\              Max clock for locked clocks
-        \\  [MINVAL]    Min clock for locked clocks, if not provided
-        \\              the min clock will be set to the lowest supported one
+        \\Usage: nvuv set [OPTIONS]
         \\
         \\Options:
-        \\  -h, --help         Print help
-        \\  -g, --gpu <GPU>    Set specific gpu by index (0-based)
+        \\  -w, --power-limit <W>   Set power limit (W)
+        \\  -g, --gpu-clock [MIN]..[MAX]
+        \\        Set gpu locked clock (MHz) (default: lowest/highest supported)
+        \\        Example: -g 200..2000, -g ..2000, -g 200..
+        \\  -m, --mem-clock [MIN]..[MAX]
+        \\        Set memory locked clock (MHz) (default: lowest/highest supported)
+        \\        Example: -m 400..14000, -g ..14000, -g 400..
+        \\  -G, --gpu-offset <MHz>  Set gpu clock offset (MHz) (negative values allowed)
+        \\  -M, --mem-offset <MHz>  Set memory clock offset (MHz) (negative values allowed)
+        \\  -i, --gpu-index <GPU>   Set specific gpu by index (0-based)
+        \\  -h, --help              Print help
         \\
     ;
 
     const options =
-        \\  -h, --help         Print help
-        \\  -g, --gpu <GPU>    Set specific gpu by index (0-based)
-        \\  <PROPERTY>
-        \\  <VALUE>
-        \\  <MINVAL>
+        \\  -w, --power-limit <POWERLIMIT>
+        \\  -g, --gpu-clock <GPUCLOCK>
+        \\  -m, --mem-clock <MEMCLOCK>
+        \\  -G, --gpu-offset <GPUOFFSET>
+        \\  -M, --mem-offset <MEMOFFSET>
+        \\  -i, --gpu-index <GPU>
+        \\  -h, --help
         \\
     ;
 
     const params = comptime clap.parseParamsComptime(options);
     const parsers = comptime .{
+        .POWERLIMIT = clap.parsers.int(u32, 10),
+        .GPUCLOCK = rangeParser,
+        .MEMCLOCK = rangeParser,
+        .GPUOFFSET = clap.parsers.int(i32, 10),
+        .MEMOFFSET = clap.parsers.int(i32, 10),
         .GPU = clap.parsers.int(u16, 10),
-        .PROPERTY = clap.parsers.enumeration(CliSetProperty),
-        .VALUE = intParser, // custom parser
-        .MINVAL = clap.parsers.int(u32, 10),
     };
 
     var diag = clap.Diagnostic{};
@@ -307,92 +327,60 @@ fn set(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) !Pa
         .diagnostic = &diag,
         .allocator = gpa,
     }) catch |err| {
-        report(diag, err);
+        report(diag, err, .{});
         try printUsage(io, &params, "set");
-        return err;
+        return parseErrOut(err);
     };
     defer res.deinit();
 
     if (res.args.help != 0) {
-        std.debug.print("{s}\n", .{help});
+        std.debug.print(help, .{});
         return .noop;
     }
-    if (res.positionals[0] == null) {
-        std.log.err("Missing argument: PROPERTY", .{});
+    var props: SetGpuProps = .{};
+    if (res.args.@"power-limit") |pl| props.power_limit = pl;
+    if (res.args.@"gpu-clock") |gc| props.gpu_clock = gc;
+    if (res.args.@"mem-clock") |mc| props.mem_clock = mc;
+    if (res.args.@"gpu-offset") |go| props.gpu_clock_offset = go;
+    if (res.args.@"mem-offset") |mo| props.mem_clock_offset = mo;
+
+    if (!hasFieldSet(props)) {
+        std.log.err("no option given", .{});
         try printUsage(io, &params, "set");
-        return error.MissingArgument;
+        return error.ParseCaught;
     }
-    if (res.positionals[1] == null) {
-        std.log.err("Missing argument: VALUE", .{});
-        try printUsage(io, &params, "set");
-        return error.MissingArgument;
-    }
-    const property: Query = res.positionals[0].?.toQuery();
-    var value: PropValue = res.positionals[1].?;
-    // enforce that the input value for power limit and locked
-    // clocks are uint, clock offsets are int
-    switch (property) {
-        .power_limit, .gpu_clock, .mem_clock => {
-            if (value == .int) {
-                std.log.err("Value for '{s}' must be a positive integer, got {d}", .{ @tagName(property), value.int });
-                try printUsage(io, &params, "set");
-                return error.InvalidArgument;
-            }
-        },
-        .gpu_clock_offset, .mem_clock_offset => {
-            // in case of positive offset was parsed as uint,
-            // we must cast to int
-            if (value == .uint) {
-                const i_val = std.math.cast(i32, value.uint) orelse {
-                    std.log.err("Value for '{s}' is out of range: {d}", .{ @tagName(property), value.uint });
-                    return error.InvalidArgument;
-                };
-                value = .{ .int = i_val };
-            }
-        },
-        else => unreachable,
-    }
-    // now the value is guaranteed to be of the correct type for
-    // the property: power limit and locked clocks are uint, clock offsets are int
+
     return .{ .set = .{
-        .property = property,
-        .value = value,
-        .minval = res.positionals[2],
-        .gpu = res.args.gpu,
+        .props = props,
+        .gpu = res.args.@"gpu-index",
     } };
 }
 
 fn reset(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) !Parsed {
     const help =
         \\Reset GPU settings to default (requires root).
-        \\If no PROPERTY is given, reset all properties.
         \\
-        \\Usage: nvuv reset [OPTIONS] [PROPERTY]
-        \\
-        \\Arguments:
-        \\  [PROPERTY]  Possible values:
-        \\    w, pl         Reset power limit
-        \\    gl, gc        Reset gpu locked clock
-        \\    ml, mc        Reset memory locked clock
-        \\    go            Reset gpu clock offset
-        \\    mo            Reset memory clock offset
+        \\Usage: nvuv reset [OPTIONS]
         \\
         \\Options:
-        \\  -h, --help         Print help
-        \\  -g, --gpu <GPU>    Reset on specific gpu by index (0-based)
         \\
     ;
 
     const options =
-        \\  -h, --help         Print help
-        \\  -g, --gpu <GPU>    Reset on specific gpu by index (0-based)
-        \\  <PROPERTY>
+        \\  -A, --all           Reset all properties
+        \\  -w, --power-limit   Reset power limit
+        \\  -g, --gpu-clock     Reset gpu locked clocks
+        \\  -m, --mem-clock     Reset memory locked clocks
+        \\  -G, --gpu-offset    Reset gpu clock offsets
+        \\  -M, --mem-offset    Reset memory clock offsets
+        \\  -i, --gpu-index <GPU>
+        \\        Reset a specific gpu by index (0-based)
+        \\  -h, --help          Print help
         \\
     ;
 
     const params = comptime clap.parseParamsComptime(options);
     const parsers = comptime .{
-        .PROPERTY = clap.parsers.enumeration(CliSetProperty),
         .GPU = clap.parsers.int(u16, 10),
     };
 
@@ -401,21 +389,36 @@ fn reset(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) !
         .diagnostic = &diag,
         .allocator = gpa,
     }) catch |err| {
-        report(diag, err);
+        report(diag, err, .{});
         try printUsage(io, &params, "reset");
-        return err;
+        return parseErrOut(err);
     };
     defer res.deinit();
 
     if (res.args.help != 0) {
-        std.debug.print("{s}\n", .{help});
+        std.debug.print("{s}{s}", .{ help, options });
         return .noop;
     }
-    const property = if (res.positionals[0]) |prop| prop.toQuery() else null;
+
+    var props: GetGpuProps = .{};
+    if (res.args.all != 0) {
+        props = GetGpuProps.default();
+    }
+    if (res.args.@"power-limit" != 0) props.power_limit = true;
+    if (res.args.@"gpu-clock" != 0) props.gpu_clock = true;
+    if (res.args.@"mem-clock" != 0) props.mem_clock = true;
+    if (res.args.@"gpu-offset" != 0) props.gpu_clock_offset = true;
+    if (res.args.@"mem-offset" != 0) props.mem_clock_offset = true;
+
+    if (!hasFieldSet(props)) {
+        std.log.err("no option given", .{});
+        try printUsage(io, &params, "reset");
+        return error.ParseCaught;
+    }
 
     return .{ .reset = .{
-        .property = property,
-        .gpu = res.args.gpu,
+        .props = props,
+        .gpu = res.args.@"gpu-index",
     } };
 }
 
@@ -436,14 +439,14 @@ fn config_commands(
         .diagnostic = &diag,
         .allocator = gpa,
     }) catch |err| {
-        report(diag, err);
+        report(diag, err, .{});
         try printUsage(io, &params, if (op == .showcfg) "cfg" else "applycfg");
-        return err;
+        return parseErrOut(err);
     };
     defer res.deinit();
 
     if (res.args.help != 0) {
-        std.debug.print("{s}\n{s}\n", .{ help, config_command_options });
+        std.debug.print("{s}{s}", .{ help, config_command_options });
         return .noop;
     }
     return @unionInit(Parsed, @tagName(op), .{
@@ -473,9 +476,9 @@ fn info(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) !P
         .diagnostic = &diag,
         .allocator = gpa,
     }) catch |err| {
-        report(diag, err);
+        report(diag, err, .{});
         try printUsage(io, &params, "info");
-        return err;
+        return parseErrOut(err);
     };
     defer res.deinit();
 
@@ -486,51 +489,282 @@ fn info(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) !P
     return .info;
 }
 
-fn printUsage(io: std.Io, params: anytype, subcmd: ?[]const u8) !void {
-    if (subcmd) |cmd| {
-        std.debug.print("Usage: {s} {s} ", .{ bin_name, cmd });
-    } else {
-        std.debug.print("Usage: {s} ", .{bin_name});
+fn gpu(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) !Parsed {
+    const help =
+        \\Print gpu info
+        \\
+        \\Usage: nvuv gpu [OPTIONS]
+        \\
+        \\Options:
+        \\
+    ;
+
+    const options =
+        \\  -i, --gpu-index <GPU>
+        \\        Query a specific gpu by index (0-based)
+        \\  -h, --help    Print help
+        \\
+    ;
+
+    const params = comptime clap.parseParamsComptime(options);
+
+    var diag = clap.Diagnostic{};
+    const parsers = comptime .{
+        .GPU = clap.parsers.int(u16, 10),
+    };
+    var res = clap.parseEx(clap.Help, &params, parsers, iter, .{
+        .diagnostic = &diag,
+        .allocator = gpa,
+    }) catch |err| {
+        report(diag, err, .{});
+        try printUsage(io, &params, "gpu");
+        return parseErrOut(err);
+    };
+    defer res.deinit();
+
+    if (res.args.help != 0) {
+        std.debug.print("{s}{s}", .{ help, options });
+        return .noop;
     }
-    try clap.usageToFile(io, .stdout(), clap.Help, params);
-    std.debug.print("\n", .{});
+    return .{ .gpu = .{
+        .gpu = res.args.@"gpu-index",
+    } };
+}
+
+fn gpun(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) !Parsed {
+    const help =
+        \\Print the number of detected GPUs
+        \\
+        \\Usage: nvuv gpun [OPTIONS]
+        \\
+        \\Options:
+        \\
+    ;
+
+    const options =
+        \\  -h, --help    Print help
+        \\
+    ;
+
+    const params = comptime clap.parseParamsComptime(options);
+
+    var diag = clap.Diagnostic{};
+    var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
+        .diagnostic = &diag,
+        .allocator = gpa,
+    }) catch |err| {
+        report(diag, err, .{});
+        try printUsage(io, &params, "gpun");
+        return parseErrOut(err);
+    };
+    defer res.deinit();
+
+    if (res.args.help != 0) {
+        std.debug.print("{s}{s}", .{ help, options });
+        return .noop;
+    }
+    return .gpus;
+}
+
+fn pstate(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) !Parsed {
+    const help =
+        \\Print clocks and offsets by P-state
+        \\
+        \\Usage: nvuv ps [OPTIONS] [PSTATE]
+        \\
+        \\Arguments:
+        \\  [PSTATE]  Query specific P-state by index (0-based)
+        \\
+        \\Options:
+        \\  -i, --gpu-index <GPU>
+        \\        Query a specific gpu by index (0-based)
+        \\  -h, --help    Print help
+        \\
+    ;
+
+    const options =
+        \\  -i, --gpu-index <GPU>
+        \\        Query a specific gpu by index (0-based)
+        \\  -h, --help    Print help
+        \\  <PSTATE>
+        \\
+    ;
+
+    const params = comptime clap.parseParamsComptime(options);
+
+    var diag = clap.Diagnostic{};
+    const parsers = comptime .{
+        .PSTATE = clap.parsers.int(u16, 10),
+        .GPU = clap.parsers.int(u16, 10),
+    };
+    var res = clap.parseEx(clap.Help, &params, parsers, iter, .{
+        .diagnostic = &diag,
+        .allocator = gpa,
+    }) catch |err| {
+        report(diag, err, .{});
+        try printUsage(io, &params, "ps");
+        return parseErrOut(err);
+    };
+    defer res.deinit();
+
+    if (res.args.help != 0) {
+        std.debug.print(help, .{});
+        return .noop;
+    }
+    return .{ .pstate = .{
+        .pstate = res.positionals[0],
+        .gpu = res.args.@"gpu-index",
+    } };
+}
+
+fn pstaten(io: std.Io, gpa: std.mem.Allocator, iter: *std.process.Args.Iterator) !Parsed {
+    const help =
+        \\Print supported P-states
+        \\
+        \\Usage: nvuv psn [OPTIONS]
+        \\
+        \\Options:
+        \\
+    ;
+
+    const options =
+        \\  -i, --gpu-index <GPU>
+        \\        Query a specific gpu by index (0-based)
+        \\  -h, --help    Print help
+        \\
+    ;
+
+    const params = comptime clap.parseParamsComptime(options);
+
+    var diag = clap.Diagnostic{};
+    const parsers = comptime .{
+        .GPU = clap.parsers.int(u16, 10),
+    };
+    var res = clap.parseEx(clap.Help, &params, parsers, iter, .{
+        .diagnostic = &diag,
+        .allocator = gpa,
+    }) catch |err| {
+        report(diag, err, .{});
+        try printUsage(io, &params, "psn");
+        return parseErrOut(err);
+    };
+    defer res.deinit();
+
+    if (res.args.help != 0) {
+        std.debug.print("{s}{s}", .{ help, options });
+        return .noop;
+    }
+    return .{ .pstates = .{
+        .gpu = res.args.@"gpu-index",
+    } };
+}
+
+fn printUsage(io: std.Io, params: anytype, command: ?[]const u8) !void {
+    var buf: [1024]u8 = undefined;
+    var writer = std.Io.File.stderr().writer(io, &buf);
+    const w = &writer.interface;
+    if (command) |cmd| {
+        try w.print("→ {s} {s} ", .{ bin_name, cmd });
+    } else {
+        try w.print("→ {s} ", .{bin_name});
+    }
+    try clap.usage(w, clap.Help, params);
+    try w.writeByte('\n');
+    try w.flush();
 }
 
 // based on https://hejsil.github.io/zig-clap/#test.Diagnostic.report
-fn report(diag: clap.Diagnostic, err: anyerror) void {
+fn report(
+    diag: clap.Diagnostic,
+    err: anyerror,
+    comptime opt: struct { top_level: bool = false },
+) void {
     var longest = diag.name.longest();
     if (longest.kind == .positional)
         longest.name = diag.arg;
 
     switch (err) {
         error.DoesntTakeValue => std.log.err(
-            "The argument '{s}{s}' does not take a value",
+            "the option '{s}{s}' does not take a value",
             .{ longest.kind.prefix(), longest.name },
         ),
         error.MissingValue => std.log.err(
-            "The argument '{s}{s}' requires a value but none was supplied",
+            "the option '{s}{s}' requires a value",
             .{ longest.kind.prefix(), longest.name },
         ),
-        error.InvalidArgument => std.log.err(
-            "Invalid argument '{s}{s}'",
-            .{ longest.kind.prefix(), longest.name },
-        ),
-        error.NameNotPartOfEnum => std.log.err("Invalid command", .{}),
-        else => std.log.err("Error while parsing arguments: {s}", .{@errorName(err)}),
+        error.InvalidArgument => switch (longest.kind) {
+            .positional => std.log.err(
+                "invalid argument '{s}'",
+                .{longest.name},
+            ),
+            .long, .short => std.log.err(
+                "invalid option '{s}{s}'",
+                .{ longest.kind.prefix(), longest.name },
+            ),
+        },
+        error.NameNotPartOfEnum => if (opt.top_level) {
+            std.log.err("invalid command", .{});
+        } else {
+            std.log.err("invalid option value", .{});
+        },
+        // int parser errors
+        error.InvalidCharacter,
+        error.Overflow,
+        => std.log.err("invalid numeric value", .{}),
+        else => std.log.err("arguments parsing failed: {s}", .{@errorName(err)}),
     }
 }
 
-fn intParser(in: []const u8) std.fmt.ParseIntError!PropValue {
-    if (std.fmt.parseUnsigned(u32, in, 10)) |v| {
-        return .{ .uint = v };
-    } else |_| {
-        return .{ .int = try std.fmt.parseInt(i32, in, 10) };
-    }
+fn rangeParser(in: []const u8) (std.fmt.ParseIntError || error{InvalidValue})!Range {
+    const delim = std.mem.find(u8, in, "..") orelse return error.InvalidCharacter;
+    const min_s = in[0..delim];
+    const max_s = in[delim + 2 ..];
+    if (min_s.len == 0 and max_s.len == 0) return error.InvalidCharacter;
+
+    const min: ?u32 = if (min_s.len == 0) null else try std.fmt.parseUnsigned(u32, min_s, 10);
+    const max: ?u32 = if (max_s.len == 0) null else try std.fmt.parseUnsigned(u32, max_s, 10);
+    if (min) |mi| if (max) |ma| {
+        if (mi > ma) return error.InvalidValue;
+    };
+
+    return .{ .min = min, .max = max };
 }
 
-test "intParser" {
-    try std.testing.expectEqual(PropValue{ .uint = 42 }, intParser("42"));
-    try std.testing.expectEqual(PropValue{ .int = -42 }, intParser("-42"));
-    try std.testing.expectError(std.fmt.ParseIntError.InvalidCharacter, intParser("0.42"));
-    try std.testing.expectError(std.fmt.ParseIntError.InvalidCharacter, intParser("abc"));
+test "rangeParser" {
+    try std.testing.expectEqual(Range{ .min = null, .max = 123 }, rangeParser("..123"));
+    try std.testing.expectEqual(Range{ .min = 123, .max = null }, rangeParser("123.."));
+    try std.testing.expectEqual(Range{ .min = 123, .max = 123 }, rangeParser("123..123"));
+    try std.testing.expectEqual(Range{ .min = 1, .max = 2 }, rangeParser("1..2"));
+    try std.testing.expectError(error.InvalidValue, rangeParser("2..1"));
+    try std.testing.expectError(error.InvalidCharacter, rangeParser(".."));
+    try std.testing.expectError(error.InvalidCharacter, rangeParser("123"));
+    try std.testing.expectError(error.InvalidCharacter, rangeParser("abc"));
+}
+
+/// Merge and map user caught parse errors so main can filter them
+fn parseErrOut(
+    err: anyerror,
+) anyerror {
+    return switch (err) {
+        error.DoesntTakeValue,
+        error.MissingValue,
+        error.InvalidArgument,
+        error.NameNotPartOfEnum,
+        // int parser errors
+        error.InvalidCharacter,
+        error.Overflow,
+        => error.ParseCaught,
+        else => err,
+    };
+}
+
+fn hasFieldSet(self: anytype) bool {
+    const T = @TypeOf(self);
+    const tinfo = @typeInfo(T).@"struct";
+    inline for (tinfo.field_names, tinfo.field_types) |name, ty| {
+        if (@typeInfo(ty) != .optional)
+            @compileError("hasFieldSet: field '" ++ name ++ "' of " ++ @typeName(T) ++ " not optional");
+        if (@field(self, name) != null) return true;
+    }
+    return false;
 }

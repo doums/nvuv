@@ -210,24 +210,25 @@ pub const Gpu = struct {
     pub fn setLockedClock(
         self: *const Gpu,
         comptime clkt: ClkType,
-        max_clock_mhz: u32,
-        min_clock_mhz: ?u32,
+        min_mhz: ?u32,
+        max_mhz: ?u32,
     ) !void {
         const range = self.pstates.getClockRange(clkt);
-        const min_clock = min_clock_mhz orelse range.min;
-        if (max_clock_mhz < range.min or max_clock_mhz > range.max) {
-            std.log.err("max {s} clock {d}MHz is out of range ({d}..{d}MHz)", .{
+        const min = min_mhz orelse range.min;
+        const max = max_mhz orelse range.max;
+        if (min < range.min or min > range.max) {
+            std.log.err("min {s} clock {d}MHz is out of range ({d}..{d}MHz)", .{
                 clkt.str(),
-                max_clock_mhz,
+                min,
                 range.min,
                 range.max,
             });
             return error.InvalidValue;
         }
-        if (min_clock < range.min or min_clock > range.max) {
-            std.log.err("min {s} clock {d}MHz is out of range ({d}..{d}MHz)", .{
+        if (max < range.min or max > range.max) {
+            std.log.err("max {s} clock {d}MHz is out of range ({d}..{d}MHz)", .{
                 clkt.str(),
-                min_clock,
+                max,
                 range.min,
                 range.max,
             });
@@ -237,11 +238,11 @@ pub const Gpu = struct {
             .gpu => c.nvmlDeviceSetGpuLockedClocks,
             .mem => c.nvmlDeviceSetMemoryLockedClocks,
         };
-        try nvmlCheck(@call(.auto, setLockedClockFn, .{ self.device, min_clock, max_clock_mhz }));
+        try nvmlCheck(@call(.auto, setLockedClockFn, .{ self.device, min, max }));
         std.debug.print("{s} locked clock set to {d}..{d}MHz\n", .{
             clkt.str(),
-            min_clock,
-            max_clock_mhz,
+            min,
+            max,
         });
     }
 
@@ -355,6 +356,10 @@ pub const Gpu = struct {
         }
     }
 
+    pub fn checkPstate(self: *const Gpu, pstate: u16) !void {
+        return if (self.pstates.checkPState(pstate) == false) return error.InvalidPState;
+    }
+
     pub fn printSupportedPStates(self: *const Gpu) void {
         self.pstates.printPStateIndexes();
     }
@@ -376,7 +381,7 @@ pub const Gpu = struct {
 
     fn applyClockConfig(self: *const Gpu, comptime clkt: ClkType, cfg: *const ClockConfig) !void {
         switch (cfg.*) {
-            .locked => |range| try self.setLockedClock(clkt, range.max, range.min),
+            .locked => |range| try self.setLockedClock(clkt, range.min, range.max),
             .reset => |r| if (r == 1) try self.resetLockedClock(clkt),
         }
     }

@@ -7,16 +7,17 @@ const cfg = @import("config.zig");
 const cli = @import("cli.zig");
 const Nvml = @import("nvml.zig").Nvml;
 
-pub fn main(init: std.process.Init) !void {
+pub fn main(init: std.process.Init) !u8 {
     // NOTE: in dev use this allocator
     // const gpa = init.gpa;
     const gpa = init.arena.allocator();
 
-    const parsed = try cli.cli(init.minimal.args, init.io, gpa);
+    const parsed = cli.cli(init.minimal.args, init.io, gpa) catch |err|
+        return if (err == error.ParseCaught) 1 else err;
     std.log.debug("cli parsed: {any}", .{parsed});
 
     if (parsed == .noop) {
-        return;
+        return 0;
     }
 
     const config = switch (parsed) {
@@ -27,7 +28,7 @@ pub fn main(init: std.process.Init) !void {
 
     if (parsed == .showcfg) {
         config.?.print();
-        return;
+        return 0;
     }
 
     var nvml = try Nvml.init(gpa);
@@ -35,8 +36,18 @@ pub fn main(init: std.process.Init) !void {
 
     if (nvml.gpu_count == 0 and parsed != .info) {
         std.log.warn("no GPU found", .{});
-        return;
+        return 1;
     }
     const userconf = if (config) |conf| conf.get() else null;
-    try nvml.dispatch(parsed, userconf);
+    nvml.dispatch(parsed, userconf) catch |err|
+        return switch (err) {
+            error.InvalidGpuIndex,
+            error.CommandError,
+            error.NoConfigFound,
+            error.EmptyConfig,
+            error.InvalidPState,
+            error.RootRequired,
+            => 1,
+        };
+    return 0;
 }

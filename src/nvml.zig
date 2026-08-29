@@ -63,15 +63,74 @@ pub const Nvml = struct {
     }
 
     pub fn dispatch(self: *const Nvml, parsed: Parsed, config: ?UserConfig) !void {
+        var err_hit: usize = 0;
+
         switch (parsed) {
-            .query => |handler| {
-                try handler.run(self.gpus);
+            .get => |d| {
+                const gpu = try self.getGpu(d.gpu orelse 0);
+                if (d.pstate) |ps| gpu.checkPstate(ps) catch |err| {
+                    std.log.err("invalid P-state {d} (GPU{d})", .{ ps, gpu.index });
+                    gpu.printSupportedPStates();
+                    return err;
+                };
+                if (d.props.power_limit) |_| gpu.printPowerLimit();
+                if (d.props.gpu_clock) |_| gpu.printClock(.gpu, d.pstate) catch {};
+                if (d.props.mem_clock) |_| gpu.printClock(.mem, d.pstate) catch {};
+                if (d.props.gpu_clock_offset) |_| gpu.printClockOffset(.gpu, d.pstate) catch {};
+                if (d.props.mem_clock_offset) |_| gpu.printClockOffset(.mem, d.pstate) catch {};
             },
-            .set => |handler| {
-                try handler.run(self.gpus);
+            .set => |d| {
+                try hasRoot();
+                const gpu = try self.getGpu(d.gpu orelse 0);
+                if (d.props.power_limit) |w| gpu.setPowerLimit(w) catch {
+                    err_hit += 1;
+                };
+                if (d.props.gpu_clock) |r| gpu.setLockedClock(.gpu, r.min, r.max) catch {
+                    err_hit += 1;
+                };
+                if (d.props.mem_clock) |r| gpu.setLockedClock(.mem, r.min, r.max) catch {
+                    err_hit += 1;
+                };
+                if (d.props.gpu_clock_offset) |o| gpu.setClockOffset(.gpu, o) catch {
+                    err_hit += 1;
+                };
+                if (d.props.mem_clock_offset) |o| gpu.setClockOffset(.mem, o) catch {
+                    err_hit += 1;
+                };
             },
-            .reset => |handler| {
-                try handler.run(self.gpus);
+            .reset => |d| {
+                try hasRoot();
+                const gpu = try self.getGpu(d.gpu orelse 0);
+                if (d.props.power_limit) |_| gpu.resetPowerLimit() catch {
+                    err_hit += 1;
+                };
+                if (d.props.gpu_clock) |_| gpu.resetLockedClock(.gpu) catch {
+                    err_hit += 1;
+                };
+                if (d.props.mem_clock) |_| gpu.resetLockedClock(.mem) catch {
+                    err_hit += 1;
+                };
+                if (d.props.gpu_clock_offset) |_| gpu.setClockOffset(.gpu, 0) catch {
+                    err_hit += 1;
+                };
+                if (d.props.mem_clock_offset) |_| gpu.setClockOffset(.mem, 0) catch {
+                    err_hit += 1;
+                };
+            },
+            .gpu => |d| {
+                const gpu = try self.getGpu(d.gpu orelse 0);
+                gpu.print();
+            },
+            .gpus => {
+                std.debug.print("GPU count: {d}\n", .{self.gpus.len});
+            },
+            .pstate => |d| {
+                const gpu = try self.getGpu(d.gpu orelse 0);
+                try gpu.printPStateClocks(d.pstate);
+            },
+            .pstates => |d| {
+                const gpu = try self.getGpu(d.gpu orelse 0);
+                gpu.printSupportedPStates();
             },
             .info => {
                 std.debug.print("NVIDIA driver: {s}\n", .{self.driver_version});
@@ -81,6 +140,7 @@ pub const Nvml = struct {
                 }
             },
             .applycfg => {
+                try hasRoot();
                 const conf = config orelse {
                     std.log.warn("no config to apply", .{});
                     return error.NoConfigFound;
@@ -100,6 +160,17 @@ pub const Nvml = struct {
             },
             else => unreachable,
         }
+        if (err_hit > 0) {
+            return error.CommandError;
+        }
+    }
+
+    fn getGpu(self: *const Nvml, index: u16) !*Gpu {
+        if (index >= self.gpus.len) {
+            std.log.err("invalid GPU index {d} (0-based)", .{index});
+            return error.InvalidGpuIndex;
+        }
+        return &self.gpus[index];
     }
 
     pub fn deinit(self: *Nvml) void {
@@ -110,3 +181,10 @@ pub const Nvml = struct {
         nvmlCheck(c.nvmlShutdown()) catch {};
     }
 };
+
+fn hasRoot() !void {
+    if (std.os.linux.geteuid() != 0) {
+        std.log.err("root required", .{});
+        return error.RootRequired;
+    }
+}

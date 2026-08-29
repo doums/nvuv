@@ -210,6 +210,13 @@ pub const Pstates = struct {
         return null;
     }
 
+    pub fn checkPState(self: *const Pstates, num: u16) bool {
+        for (self.pstates) |pstate| {
+            if (pstate.num == num) return true;
+        }
+        return false;
+    }
+
     pub fn highestPState(self: *const Pstates) Pstate {
         return self.pstates[0];
     }
