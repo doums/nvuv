@@ -711,20 +711,21 @@ fn report(
         error.InvalidCharacter,
         error.Overflow,
         => std.log.err("invalid numeric value", .{}),
+        error.InvalidRangeValue => std.log.err("invalid range value", .{}),
         else => std.log.err("arguments parsing failed: {s}", .{@errorName(err)}),
     }
 }
 
-fn rangeParser(in: []const u8) (std.fmt.ParseIntError || error{InvalidValue})!Range {
-    const delim = std.mem.find(u8, in, "..") orelse return error.InvalidCharacter;
+fn rangeParser(in: []const u8) (error{InvalidRangeValue})!Range {
+    const delim = std.mem.find(u8, in, "..") orelse return error.InvalidRangeValue;
     const min_s = in[0..delim];
     const max_s = in[delim + 2 ..];
-    if (min_s.len == 0 and max_s.len == 0) return error.InvalidCharacter;
+    if (min_s.len == 0 and max_s.len == 0) return error.InvalidRangeValue;
 
-    const min: ?u32 = if (min_s.len == 0) null else try std.fmt.parseUnsigned(u32, min_s, 10);
-    const max: ?u32 = if (max_s.len == 0) null else try std.fmt.parseUnsigned(u32, max_s, 10);
+    const min: ?u32 = if (min_s.len == 0) null else std.fmt.parseUnsigned(u32, min_s, 10) catch return error.InvalidRangeValue;
+    const max: ?u32 = if (max_s.len == 0) null else std.fmt.parseUnsigned(u32, max_s, 10) catch return error.InvalidRangeValue;
     if (min) |mi| if (max) |ma| {
-        if (mi > ma) return error.InvalidValue;
+        if (mi > ma) return error.InvalidRangeValue;
     };
 
     return .{ .min = min, .max = max };
@@ -735,10 +736,10 @@ test "rangeParser" {
     try std.testing.expectEqual(Range{ .min = 123, .max = null }, rangeParser("123.."));
     try std.testing.expectEqual(Range{ .min = 123, .max = 123 }, rangeParser("123..123"));
     try std.testing.expectEqual(Range{ .min = 1, .max = 2 }, rangeParser("1..2"));
-    try std.testing.expectError(error.InvalidValue, rangeParser("2..1"));
-    try std.testing.expectError(error.InvalidCharacter, rangeParser(".."));
-    try std.testing.expectError(error.InvalidCharacter, rangeParser("123"));
-    try std.testing.expectError(error.InvalidCharacter, rangeParser("abc"));
+    try std.testing.expectError(error.InvalidRangeValue, rangeParser("2..1"));
+    try std.testing.expectError(error.InvalidRangeValue, rangeParser(".."));
+    try std.testing.expectError(error.InvalidRangeValue, rangeParser("123"));
+    try std.testing.expectError(error.InvalidRangeValue, rangeParser("abc"));
 }
 
 /// Merge and map user caught parse errors so main can filter them
@@ -753,6 +754,7 @@ fn parseErrOut(
         // int parser errors
         error.InvalidCharacter,
         error.Overflow,
+        error.InvalidRangeValue,
         => error.ParseCaught,
         else => err,
     };

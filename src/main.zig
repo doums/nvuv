@@ -5,7 +5,7 @@ const std = @import("std");
 
 const cfg = @import("config.zig");
 const cli = @import("cli.zig");
-const Nvml = @import("nvml.zig").Nvml;
+const Nvuv = @import("nvuv.zig").Nvuv;
 
 pub fn main(init: std.process.Init) !u8 {
     // NOTE: in dev use this allocator
@@ -31,15 +31,15 @@ pub fn main(init: std.process.Init) !u8 {
         return 0;
     }
 
-    var nvml = try Nvml.init(gpa);
-    defer nvml.deinit();
+    var nvuv = try Nvuv.init(gpa);
+    defer nvuv.deinit();
 
-    if (nvml.gpu_count == 0 and parsed != .info) {
+    if (nvuv.gpu_count == 0 and parsed != .info) {
         std.log.warn("no GPU found", .{});
         return 1;
     }
     const userconf = if (config) |conf| conf.get() else null;
-    nvml.dispatch(parsed, userconf) catch |err|
+    nvuv.dispatch(parsed, userconf) catch |err|
         return switch (err) {
             error.InvalidGpuIndex,
             error.CommandError,

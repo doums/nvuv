@@ -11,14 +11,14 @@ const UserConfig = @import("config.zig").UserConfig;
 const driver_buf_size = c.NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE;
 const nvml_buf_size = c.NVML_SYSTEM_NVML_VERSION_BUFFER_SIZE;
 
-pub const Nvml = struct {
+pub const Nvuv = struct {
     allocator: std.mem.Allocator,
     driver_version: []u8, // owned memory
     nvml_version: []u8, // owned memory
     gpu_count: u32,
     gpus: []Gpu,
 
-    pub fn init(gpa: std.mem.Allocator) !Nvml {
+    pub fn init(gpa: std.mem.Allocator) !Nvuv {
         try nvmlCheck(c.nvmlInit());
 
         var driver_version: [driver_buf_size:0]u8 = undefined;
@@ -53,7 +53,7 @@ pub const Nvml = struct {
         }
         const gpus = try arr.toOwnedSlice(gpa);
 
-        return Nvml{
+        return Nvuv{
             .allocator = gpa,
             .driver_version = owned_driver_version,
             .nvml_version = owned_nvml_version,
@@ -62,7 +62,7 @@ pub const Nvml = struct {
         };
     }
 
-    pub fn dispatch(self: *const Nvml, parsed: Parsed, config: ?UserConfig) !void {
+    pub fn dispatch(self: *const Nvuv, parsed: Parsed, config: ?UserConfig) !void {
         var err_hit: usize = 0;
 
         switch (parsed) {
@@ -165,7 +165,7 @@ pub const Nvml = struct {
         }
     }
 
-    fn getGpu(self: *const Nvml, index: u16) !*Gpu {
+    fn getGpu(self: *const Nvuv, index: u16) !*Gpu {
         if (index >= self.gpus.len) {
             std.log.err("invalid GPU index {d} (0-based)", .{index});
             return error.InvalidGpuIndex;
@@ -173,7 +173,7 @@ pub const Nvml = struct {
         return &self.gpus[index];
     }
 
-    pub fn deinit(self: *Nvml) void {
+    pub fn deinit(self: *Nvuv) void {
         for (self.gpus) |*g| g.deinit(self.allocator);
         self.allocator.free(self.gpus);
         self.allocator.free(self.nvml_version);
