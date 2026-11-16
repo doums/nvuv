@@ -1,20 +1,20 @@
 .{
     .name = .nvuv,
-    .version = "0.3.1",
+    .version = "0.3.2",
     .fingerprint = 0x41ef1274ed5bfde3,
-    .minimum_zig_version = "0.17.0-dev",
+    .minimum_zig_version = "0.17.1",
     .dependencies = .{
         .nvml = .{
-            .url = "https://developer.download.nvidia.com/compute/cuda/redist/cuda_nvml_dev/linux-x86_64/cuda_nvml_dev-linux-x86_64-13.3.29-archive.tar.xz",
-            .hash = "N-V-__8AABgvGACTupA-FBe1X6ND6GWuiyGf5SUjm-w2FLeL",
+            .url = "https://developer.download.nvidia.com/compute/cuda/redist/cuda_nvml_dev/linux-x86_64/cuda_nvml_dev-linux-x86_64-13.5.37-archive.tar.xz",
+            .hash = "N-V-__8AAIWTGgCeSFZsSoMZaKoZILgdnZ5U1Qt0-zpnW7_m",
         },
         .toml = .{
-            .url = "git+https://github.com/sam701/zig-toml#c661327bd9f02f774426c4fe78f60621411b7173",
-            .hash = "toml-0.3.0-bV14BRmkAQDSILPPyXc31aAXPtJa1Uh8Frug3i6InAUc",
+            .url = "git+https://github.com/sam701/zig-toml#6456172ac3526c49b2127885413d7caed8240753",
+            .hash = "toml-0.3.0-bV14BYKmAQD6bVRoXkfw2YIDJMFlvNTxC6DfdDn_bHy4",
         },
         .clap = .{
-            .url = "git+https://github.com/Hejsil/zig-clap#05faf3905e8548f5cc269a8836e154065e70128d",
-            .hash = "clap-0.12.0-oBajB4XpAQCF1WRKnD5KOKPsnwwT_NNdAJ7Ww3irYJac",
+            .url = "git+https://github.com/Hejsil/zig-clap#f136e0260178bca9c25ffee4489c2a40f38afc1e",
+            .hash = "clap-0.12.0-oBajB2rpAQB-e3bjPSp_7lz0ufXrTqmMU400qq8Gv8Gp",
         },
     },
     .paths = .{
