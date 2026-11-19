@@ -21,7 +21,7 @@ pub fn main(init: std.process.Init) !u8 {
     }
 
     const config = switch (parsed) {
-        .showcfg, .applycfg => |opt| try cfg.Config.load(init.io, gpa, opt.path),
+        .showcfg, .applycfg => |opt| cfg.Config.load(init.io, gpa, opt.path) catch return 1,
         else => null,
     };
     defer if (config) |conf| conf.deinit();
