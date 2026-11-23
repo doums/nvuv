@@ -26,6 +26,10 @@ pub fn nvmlCheck(res: c_uint) !void {
             std.log.err("permission denied, root required", .{});
             return error.NoPermission;
         },
+        c.NVML_ERROR_DRIVER_NOT_LOADED => {
+            std.log.err("NVIDIA driver not loaded", .{});
+            return error.DriverNotLoaded;
+        },
         else => {
             std.log.err("NVML: {s}", .{c.nvmlErrorString(res)});
             return error.NVML;

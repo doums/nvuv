@@ -10,6 +10,7 @@ const UserConfig = @import("config.zig").UserConfig;
 
 const driver_buf_size = c.NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE;
 const nvml_buf_size = c.NVML_SYSTEM_NVML_VERSION_BUFFER_SIZE;
+const nvml_lib_name = "libnvidia-ml.so.1";
 
 pub const Nvuv = struct {
     allocator: std.mem.Allocator,
@@ -19,6 +20,20 @@ pub const Nvuv = struct {
     gpus: []Gpu,
 
     pub fn init(gpa: std.mem.Allocator) !Nvuv {
+        // The statically linked NVML stub prints a noisy warning when the
+        // driver is missing, so probe for the real library first. The handle
+        // is intentionally kept open: the stub reuses it.
+        _ = std.DynLib.open(nvml_lib_name) catch |err| switch (err) {
+            error.FileNotFound => {
+                std.log.err("NVML library not found ({s})", .{nvml_lib_name});
+                return error.NVMLNotFound;
+            },
+            else => {
+                std.log.err("failed to load {s}: {s}", .{ nvml_lib_name, @errorName(err) });
+                return error.NVML;
+            },
+        };
+
         try nvmlCheck(c.nvmlInit());
 
         var driver_version: [driver_buf_size:0]u8 = undefined;
